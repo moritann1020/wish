@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Wishlist - 欲しいものリスト管理</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Sans JP & Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans JP"', 'sans-serif'],
+                        num: ['"Plus Jakarta Sans"', '"Noto Sans JP"', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 横スクロールバー非表示（フィルターツールバー用） */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-brand-100 selection:text-brand-700">
+
+    <!-- コンパクトヘッダー（検索・フィルター・追加ボタンを1つに集約し、直下にサムネイル一覧を表示） -->
+    <header class="bg-white/95 backdrop-blur-md border-b border-slate-200/90 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 space-y-2">
+            <!-- 上段：ロゴ + キーワード検索 + アクションボタン -->
+            <div class="flex items-center justify-between gap-2 sm:gap-4">
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <div class="bg-brand-600 text-white p-1.5 rounded-xl shadow-sm shadow-brand-600/20">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    </div>
+                    <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900">My Wishlist</h1>
+                </div>
+
+                <!-- 検索バー -->
+                <div class="relative flex-1 max-w-md">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <input type="text" id="filter-search" oninput="renderList()" placeholder="商品名やメモで検索..." class="w-full bg-slate-100/80 border border-slate-200/80 text-slate-700 text-xs sm:text-sm rounded-xl pl-8 pr-7 py-1.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                    <button type="button" id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- 右側ボタン群 -->
+                <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                    <button type="button" onclick="resetToSampleData()" title="サンプルデータを復元" class="text-xs text-slate-500 hover:text-slate-700 p-2 sm:px-2.5 sm:py-1.5 rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-1">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                        <span class="hidden md:inline">サンプル復元</span>
+                    </button>
+                    <button type="button" onclick="openModal()" class="bg-brand-600 hover:bg-brand-700 active:scale-[0.98] text-white text-xs sm:text-sm font-medium px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl shadow-sm shadow-brand-600/25 transition-all flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>追加</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 下段：ステータス・カテゴリ・優先度・並び替えツールバー -->
+            <div class="flex items-center justify-between gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+                <!-- ステータス タブ -->
+                <div class="inline-flex p-0.5 bg-slate-100 rounded-lg flex-shrink-0">
+                    <button type="button" data-status="all" onclick="setStatusFilter('all')" class="status-tab px-2.5 py-1 text-xs font-medium rounded-md transition-all bg-white text-slate-900 shadow-sm">
+                        すべて
+                    </button>
+                    <button type="button" data-status="unpurchased" onclick="setStatusFilter('unpurchased')" class="status-tab px-2.5 py-1 text-xs font-medium rounded-md transition-all text-slate-600 hover:text-slate-900">
+                        未購入
+                    </button>
+                    <button type="button" data-status="purchased" onclick="setStatusFilter('purchased')" class="status-tab px-2.5 py-1 text-xs font-medium rounded-md transition-all text-slate-600 hover:text-slate-900">
+                        購入済み
+                    </button>
+                </div>
+
+                <!-- 絞り込み＆並び替え -->
+                <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                    <!-- カテゴリ -->
+                    <div class="relative">
+                        <select id="filter-category" onchange="renderList()" aria-label="カテゴリで絞り込み" class="appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg pl-2.5 pr-6 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                            <option value="all">カテゴリ: すべて</option>
+                            <option value="ガジェット">ガジェット</option>
+                            <option value="ファッション">ファッション</option>
+                            <option value="インテリア">インテリア</option>
+                            <option value="本・メディア">本・メディア</option>
+                            <option value="生活雑貨">生活雑貨</option>
+                            <option value="旅行・体験">旅行・体験</option>
+                            <option value="その他">その他</option>
+                        </select>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    </div>
+
+                    <!-- 優先度 -->
+                    <div class="relative">
+                        <select id="filter-priority" onchange="renderList()" aria-label="優先度で絞り込み" class="appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg pl-2.5 pr-6 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                            <option value="all">優先度: すべて</option>
+                            <option value="high">優先度: 高</option>
+                            <option value="medium">優先度: 中</option>
+                            <option value="low">優先度: 低</option>
+                        </select>
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    </div>
+
+                    <!-- 並び替え -->
+                    <div class="relative">
+                        <select id="sort-by" onchange="renderList()" aria-label="並び替え" class="appearance-none bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg pl-2.5 pr-6 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                            <option value="newest">新しい順</option>
+                            <option value="oldest">古い順</option>
+                            <option value="priority-desc">優先度順</option>
+                            <option value="price-asc">価格が安い順</option>
+                            <option value="price-desc">価格が高い順</option>
+                        </select>
+                        <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ：最上部に正方形サムネイル一覧を表示（スマホ2列〜PC5列・下部固定フッター分の余白確保） -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-5 pb-36 sm:pb-28">
+        <section aria-label="欲しいもの画像サムネイル一覧">
+            <div id="wishlist-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                <!-- JavaScriptで動的に正方形サムネイルカードを描画 -->
+            </div>
+
+            <!-- 空状態メッセージ -->
+            <div id="empty-state" class="hidden bg-white rounded-2xl border border-dashed border-slate-300 p-10 sm:p-12 text-center mt-2">
+                <div class="mx-auto w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+                    <i data-lucide="search-x" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-base font-semibold text-slate-900">該当するアイテムがありません</h3>
+                <p class="text-sm text-slate-500 mt-1 max-w-sm mx-auto">フィルター条件を変更するか、新しい欲しいものアイテムを追加してみましょう。</p>
+                <button type="button" onclick="openModal()" class="mt-4 inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span>最初のアイテムを追加</span>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- 画面下部 固定サマリーフッター（登録数・残り必要額・リスト総額・購入済金額＆達成率バー） -->
+    <footer aria-label="サマリー統計フッター" class="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_-4px_rgba(15,23,42,0.07)]">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3">
+            <div class="grid grid-cols-2 sm:flex sm:items-center sm:justify-between gap-2 sm:gap-4">
+                <!-- 1. 登録アイテム数 -->
+                <div class="flex items-center gap-2.5">
+                    <div class="p-1.5 sm:p-2 bg-slate-100 text-slate-600 rounded-xl flex-shrink-0">
+                        <i data-lucide="package" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-baseline gap-1.5">
+                            <span class="text-[11px] text-slate-500 font-medium">登録数</span>
+                            <span class="text-sm sm:text-base font-bold font-num text-slate-900" id="stat-count">0件</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 truncate" id="stat-count-sub">未購入 0件 / 購入済 0件</p>
+                    </div>
+                </div>
+
+                <!-- 2. 残りの必要金額 -->
+                <div class="flex items-center gap-2.5 sm:border-l sm:border-slate-200/80 sm:pl-4">
+                    <div class="p-1.5 sm:p-2 bg-brand-50 text-brand-600 rounded-xl flex-shrink-0">
+                        <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-baseline gap-1.5">
+                            <span class="text-[11px] text-brand-700 font-semibold">残り必要額</span>
+                            <span class="text-sm sm:text-base font-bold font-num text-brand-600" id="stat-remaining">¥0</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 truncate">未購入アイテム合計</p>
+                    </div>
+                </div>
+
+                <!-- 3. リスト合計金額 -->
+                <div class="flex items-center gap-2.5 sm:border-l sm:border-slate-200/80 sm:pl-4">
+                    <div class="p-1.5 sm:p-2 bg-indigo-50 text-indigo-600 rounded-xl flex-shrink-0">
+                        <i data-lucide="wallet" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <div class="flex items-baseline gap-1.5">
+                            <span class="text-[11px] text-slate-500 font-medium">リスト総額</span>
+                            <span class="text-sm sm:text-base font-bold font-num text-slate-900" id="stat-total">¥0</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 truncate hidden sm:block">全登録アイテム合計</p>
+                    </div>
+                </div>
+
+                <!-- 4. 購入済み金額 & 達成プログレスバー -->
+                <div class="flex items-center gap-2.5 sm:border-l sm:border-slate-200/80 sm:pl-4 sm:min-w-[200px]">
+                    <div class="p-1.5 sm:p-2 bg-emerald-50 text-emerald-600 rounded-xl flex-shrink-0">
+                        <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-baseline justify-between gap-1.5">
+                            <span class="text-[11px] text-slate-500 font-medium">購入済 <span id="stat-progress-text" class="text-[10px] text-emerald-600 font-num font-bold">(0%)</span></span>
+                            <span class="text-sm sm:text-base font-bold font-num text-emerald-600" id="stat-purchased">¥0</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                            <div id="stat-progress-bar" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 追加・編集モーダル（サムネイル・詳細メモ確認・編集対応） -->
+    <div id="item-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden transform transition-all" onclick="event.stopPropagation()">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h2 id="modal-title" class="text-lg font-bold text-slate-900">新しいアイテムを追加</h2>
+                <button type="button" onclick="closeModal()" class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="item-form" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+                <input type="hidden" id="item-id">
+                <input type="hidden" id="item-illustration-type" value="">
+
+                <!-- サムネイル画像設定 & リアルタイムプレビュー -->
+                <div class="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-sm font-medium text-slate-700">
+                            サムネイル画像 <span class="text-xs text-slate-400 font-normal">（プリセット・URL・画像アップロード）</span>
+                        </label>
+                        <button type="button" id="remove-image-btn" onclick="clearImageInput()" class="hidden text-xs text-rose-600 hover:text-rose-700 font-medium flex items-center gap-1">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            <span>画像をクリア</span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-center">
+                        <!-- リアルタイムプレビュー枠（正方形） -->
+                        <div class="sm:col-span-4 max-w-[140px] sm:max-w-none mx-auto w-full">
+                            <div id="modal-image-preview" class="relative w-full aspect-square rounded-xl overflow-hidden border border-slate-200 bg-white shadow-inner flex items-center justify-center">
+                                <!-- JSで動的にプレビューを描画 -->
+                            </div>
+                        </div>
+
+                        <!-- URL入力 & ファイル選択ドロップゾーン -->
+                        <div class="sm:col-span-8 space-y-2">
+                            <div>
+                                <input type="text" id="item-image" oninput="onImageUrlInput()" placeholder="画像URLを貼り付け (https://...)" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                            </div>
+
+                            <div id="image-dropzone" onclick="document.getElementById('item-image-file').click()" class="cursor-pointer border-2 border-dashed border-slate-300 hover:border-brand-400 hover:bg-brand-50/40 rounded-xl p-2.5 text-center transition-colors">
+                                <input type="file" id="item-image-file" accept="image/*" class="hidden" onchange="handleImageFileSelect(event)">
+                                <div class="flex items-center justify-center gap-1.5 text-xs text-slate-600 font-medium">
+                                    <i data-lucide="image-plus" class="w-4 h-4 text-brand-600"></i>
+                                    <span>PC・スマホから画像を選択 / ドロップ</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-0.5">自動で軽量リサイズして保存されます</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 10種類のサンプルイラスト プリセット選択 -->
+                    <div class="pt-2 border-t border-slate-200/70">
+                        <span class="block text-[11px] font-medium text-slate-500 mb-1.5">サンプルイラストから選択（10種類プリセット）：</span>
+                        <div id="preset-illustration-list" class="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
+                            <!-- JSで10種類のプリセットボタンを描画 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 商品名 -->
+                <div>
+                    <label for="item-name" class="block text-sm font-medium text-slate-700 mb-1">
+                        商品名 <span class="text-rose-500">*</span>
+                    </label>
+                    <input type="text" id="item-name" required oninput="updateModalPreview()" placeholder="例：ワイヤレスヘッドホン" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                </div>
+
+                <!-- 価格 & カテゴリ -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="item-price" class="block text-sm font-medium text-slate-700 mb-1">
+                            価格（円） <span class="text-rose-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
+                            <input type="number" id="item-price" required min="0" step="1" placeholder="29800" class="w-full rounded-xl border border-slate-300 pl-8 pr-3.5 py-2.5 text-sm font-num focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="item-category" class="block text-sm font-medium text-slate-700 mb-1">
+                            カテゴリ
+                        </label>
+                        <select id="item-category" onchange="updateModalPreview()" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                            <option value="ガジェット">ガジェット</option>
+                            <option value="ファッション">ファッション</option>
+                            <option value="インテリア">インテリア</option>
+                            <option value="本・メディア">本・メディア</option>
+                            <option value="生活雑貨">生活雑貨</option>
+                            <option value="旅行・体験">旅行・体験</option>
+                            <option value="その他">その他</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 優先度 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5">優先度</label>
+                    <div class="grid grid-cols-3 gap-2.5">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="priority" value="high" class="peer sr-only">
+                            <div class="text-center py-2 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 peer-checked:border-rose-500 peer-checked:bg-rose-50 peer-checked:text-rose-700 transition-all">
+                                高（すぐ欲しい）
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="priority" value="medium" checked class="peer sr-only">
+                            <div class="text-center py-2 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 peer-checked:border-amber-500 peer-checked:bg-amber-50 peer-checked:text-amber-700 transition-all">
+                                中（検討中）
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="priority" value="low" class="peer sr-only">
+                            <div class="text-center py-2 px-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 peer-checked:border-sky-500 peer-checked:bg-sky-50 peer-checked:text-sky-700 transition-all">
+                                低（いつか）
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- URL（任意） -->
+                <div>
+                    <label for="item-url" class="block text-sm font-medium text-slate-700 mb-1">
+                        商品ページURL <span class="text-xs text-slate-400 font-normal">（任意）</span>
+                    </label>
+                    <input type="url" id="item-url" placeholder="https://example.com/product" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors">
+                </div>
+
+                <!-- 詳細メモ（カード上では省略され、モーダル内で確認・編集可能） -->
+                <div>
+                    <label for="item-memo" class="block text-sm font-medium text-slate-700 mb-1">
+                        詳細メモ <span class="text-xs text-slate-400 font-normal">（色・サイズ・検討メモなど）</span>
+                    </label>
+                    <textarea id="item-memo" rows="2" placeholder="色・サイズ・セール時期などの詳細メモ..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-colors"></textarea>
+                </div>
+
+                <!-- ボタン -->
+                <div class="pt-3 flex items-center justify-end gap-2.5 border-t border-slate-100">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                        キャンセル
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-sm shadow-brand-600/20 transition-colors">
+                        保存する
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- カスタム確認モーダル -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6 space-y-4">
+            <div class="flex items-center gap-3 text-rose-600">
+                <div class="p-2 bg-rose-50 rounded-xl">
+                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                </div>
+                <h3 id="confirm-title" class="text-base font-bold text-slate-900">確認</h3>
+            </div>
+            <p id="confirm-message" class="text-sm text-slate-600 leading-relaxed"></p>
+            <div class="flex items-center justify-end gap-2 pt-2">
+                <button type="button" onclick="closeConfirmModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                    キャンセル
+                </button>
+                <button type="button" id="confirm-ok-btn" class="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors">
+                    実行する
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知（固定フッターの上に配置） -->
+    <div id="toast" class="fixed bottom-28 sm:bottom-20 right-4 sm:right-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+            <span id="toast-message">保存しました</span>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 状態管理 & 定数定義
+        // ==========================================
+        const STORAGE_KEY = 'my_wishlist_items_v6';
+        let wishlistItems = [];
+        let currentStatusFilter = 'all'; // 'all' | 'unpurchased' | 'purchased'
+        let confirmCallback = null;
+
+        // 10種類のサンプルイラストプリセット一覧
+        const ILLUSTRATION_PRESETS = [
+            { id: 'headphones', label: 'ヘッドホン' },
+            { id: 'camera', label: 'カメラ' },
+            { id: 'sneakers', label: 'スニーカー' },
+            { id: 'bag', label: 'バッグ' },
+            { id: 'lamp', label: 'ランプ' },
+            { id: 'keyboard', label: 'キーボード' },
+            { id: 'watch', label: '腕時計' },
+            { id: 'kettle', label: '電気ケトル' },
+            { id: 'plant', label: '観葉植物' },
+            { id: 'book', label: 'アートブック' }
+        ];
+
+        // 初期サンプルデータ10件（すべてインラインSVG商品イラストを標準搭載）
+        const SAMPLE_DATA = [
+            {
+                id: 'sample-1',
+                name: 'ノイズキャンセリング ワイヤレスヘッドホン',
+                price: 39600,
+                category: 'ガジェット',
+                priority: 'high',
+                imageUrl: '',
+                illustrationType: 'headphones',
+                url: 'https://example.com/headphones',
+                memo: 'ブラックカラー。次の大型セール時にポイント還元を狙う。',
+                purchased: false,
+                createdAt: Date.now() - 86400000 * 1
+            },
+            {
+                id: 'sample-2',
+                name: 'クラシック ミラーレスカメラ レンズキット',
+                price: 118000,
+                category: 'ガジェット',
+                priority: 'high',
+                imageUrl: '',
+                illustrationType: 'camera',
+                url: 'https://example.com/camera',
+                memo: '旅行やカフェ撮影用の軽量シルバーボディモデル。',
+                purchased: false,
+                createdAt: Date.now() - 86400000 * 2
+            },
+            {
+                id: 'sample-3',
+                name: 'クラシック レザースニーカー',
+                price: 17600,
+                category: 'ファッション',
+                priority: 'medium',
+                imageUrl: '',
+                illustrationType: 'sneakers',
+                url: 'https://example.com/sneakers',
+                memo: 'サイズは26.5cm。クッション性が高く歩きやすい定番モデル。',
+                purchased: false,
+                createdAt: Date.now() - 86400000 * 3
+            },
+            {
+                id: 'sample-4',
+                name: 'ミニマル レザートートバッグ',
+                price: 24800,
+                category: 'ファッション',
+                priority: 'high',
+                imageUrl: '',
+                illustrationType: 'bag',
+                url: 'https://example.com/tote-bag',
+                memo: 'A4ノートPC収納可能。マットな質感の本革トート。',
+                purchased: false,
+                createdAt: Date.now() - 86400000 * 4
+            },
+            {
+                id: 'sample-5',
+                name: '北欧デザイン デスクランプ（調光機能付き）',
+                price: 16500,
+                category: 'インテリア',
+                priority: 'medium',
+                imageUrl: '',
+                illustrationType: 'lamp',
+                url: 'https://example.com/desk-lamp',
+                memo: 'ワークデスクの照明アップデート用。電球色と昼白色を切り替え可能。',
+                purchased: false,
+                createdAt: Date.now() - 86400000 * 5
+            },
+            {
+                id: 'sample-6',
+                name: 'メカニカル ワイヤレスキーボード 75%',
+                price: 19800,
+                category: 'ガジェット',
+                priority: 'high',
+                imageUrl: '',
+                illustrationType: 'keyboard',
+                url: 'https://example.com/keyboard',
+                memo: '静音タクタイル軸モデル。Mac/Windows両対応。',
+                purchased: false,
+                createdAt: Date.now() - 86400000 * 6
+            },
+            {
+                id: 'sample-7',
+                name: 'クラシック アナログ腕時計',
+                price: 32000,
+                category: 'ファッション',
+                priority: 'medium',
+                imageUrl: '',
+                illustrationType: 'watch',
+                url: 'https://example.com/watch',
+                memo: 'ビジネスにもカジュアルにも合わせやすいシルバーケース。',
+                purchased: false,
+                createdAt: Date.now() - 86400000 * 7
+            },
+            {
+                id: 'sample-8',
+                name: 'バリスタ監修 温度調節付き電気ケトル',
+                price: 12800,
+                category: '生活雑貨',
+                priority: 'medium',
+                imageUrl: '',
+                illustrationType: 'kettle',
+                url: 'https://example.com/kettle',
+                memo: '朝のハンドドリップコーヒー用。1℃単位で温度設定可能。',
+                purchased: true,
+                createdAt: Date.now() - 86400000 * 8
+            },
+            {
+                id: 'sample-9',
+                name: 'セラミック鉢付き モンステラ観葉植物',
+                price: 6800,
+                category: 'インテリア',
+                priority: 'low',
+                imageUrl: '',
+                illustrationType: 'plant',
+                url: 'https://example.com/plant',
+                memo: 'リビングの窓際に置くグリーンインテリア。',
+                purchased: true,
+                createdAt: Date.now() - 86400000 * 9
+            },
+            {
+                id: 'sample-10',
+                name: 'UIデザイン・タイポグラフィ実践アートブック',
+                price: 3520,
+                category: '本・メディア',
+                priority: 'low',
+                imageUrl: '',
+                illustrationType: 'book',
+                url: 'https://example.com/artbook',
+                memo: '週末のインプット用に購入済み。',
+                purchased: true,
+                createdAt: Date.now() - 86400000 * 10
+            }
+        ];
+
+        // カテゴリごとのスタイル定義
+        const CATEGORY_CONFIG = {
+            'ガジェット': {
+                gradient: 'from-indigo-500 via-blue-600 to-slate-800',
+                icon: 'cpu'
+            },
+            'ファッション': {
+                gradient: 'from-rose-400 via-pink-500 to-purple-700',
+                icon: 'shirt'
+            },
+            'インテリア': {
+                gradient: 'from-amber-400 via-orange-500 to-stone-700',
+                icon: 'lamp'
+            },
+            '本・メディア': {
+                gradient: 'from-yellow-500 via-amber-600 to-orange-800',
+                icon: 'book-open'
+            },
+            '生活雑貨': {
+                gradient: 'from-emerald-400 via-teal-500 to-cyan-800',
+                icon: 'home'
+            },
+            '旅行・体験': {
+                gradient: 'from-sky-400 via-blue-500 to-indigo-800',
+                icon: 'plane'
+            },
+            'その他': {
+                gradient: 'from-slate-500 via-slate-600 to-slate-800',
+                icon: 'sparkles'
+            }
+        };
+
+        // 優先度ごとのスタイル・重み定義
+        const PRIORITY_CONFIG = {
+            'high': { label: '優先度: 高', shortLabel: '高', badge: 'bg-rose-500/95 text-white shadow-sm', weight: 3 },
+            'medium': { label: '優先度: 中', shortLabel: '中', badge: 'bg-amber-500/95 text-white shadow-sm', weight: 2 },
+            'low': { label: '優先度: 低', shortLabel: '低', badge: 'bg-slate-700/85 text-white shadow-sm', weight: 1 }
+        };
+
+        // ==========================================
+        // 100%描画されるインラインSVG商品イラスト生成
+        // ==========================================
+        function getProductIllustrationSVG(item) {
+            const cat = CATEGORY_CONFIG[item.category] || CATEGORY_CONFIG['その他'];
+            const type = item.illustrationType || inferIllustrationType(item.name, item.category);
+            const uid = 'grad-' + Math.random().toString(36).substring(2, 9);
+
+            const illustrations = {
+                headphones: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#c7d2fe"/>
+                                <stop offset="100%" stop-color="#818cf8"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <circle cx="100" cy="106" r="68" fill="#ffffff" opacity="0.45"/>
+                        <ellipse cx="100" cy="158" rx="44" ry="7" fill="#312e81" opacity="0.22"/>
+                        <path d="M52 108 C52 68, 148 68, 148 108" fill="none" stroke="#1e1b4b" stroke-width="12" stroke-linecap="round"/>
+                        <path d="M62 103 C62 75, 138 75, 138 103" fill="none" stroke="#6366f1" stroke-width="4" stroke-linecap="round"/>
+                        <rect x="38" y="94" width="26" height="46" rx="13" fill="#1e1b4b"/>
+                        <rect x="45" y="100" width="12" height="34" rx="6" fill="#312e81"/>
+                        <rect x="136" y="94" width="26" height="46" rx="13" fill="#1e1b4b"/>
+                        <rect x="143" y="100" width="12" height="34" rx="6" fill="#312e81"/>
+                        <circle cx="51" cy="117" r="3.5" fill="#a5b4fc"/>
+                        <circle cx="149" cy="117" r="3.5" fill="#a5b4fc"/>
+                    </svg>`,
+                camera: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#bae6fd"/>
+                                <stop offset="100%" stop-color="#38bdf8"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <circle cx="100" cy="104" r="68" fill="#ffffff" opacity="0.45"/>
+                        <ellipse cx="100" cy="152" rx="54" ry="7" fill="#0c4a6e" opacity="0.22"/>
+                        <rect x="52" y="58" width="22" height="10" rx="3" fill="#334155"/>
+                        <rect x="128" y="61" width="16" height="7" rx="3" fill="#94a3b8"/>
+                        <rect x="42" y="68" width="116" height="74" rx="14" fill="#1e293b"/>
+                        <rect x="42" y="68" width="116" height="22" rx="10" fill="#cbd5e1"/>
+                        <circle cx="104" cy="108" r="28" fill="#0f172a"/>
+                        <circle cx="104" cy="108" r="22" fill="#334155"/>
+                        <circle cx="104" cy="108" r="15" fill="#0284c7"/>
+                        <circle cx="98" cy="102" r="5" fill="#e0f2fe" opacity="0.8"/>
+                        <circle cx="58" cy="80" r="4" fill="#ef4444"/>
+                    </svg>`,
+                sneakers: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#fed7aa"/>
+                                <stop offset="100%" stop-color="#fb923c"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <circle cx="100" cy="104" r="68" fill="#ffffff" opacity="0.48"/>
+                        <ellipse cx="100" cy="146" rx="64" ry="7" fill="#7c2d12" opacity="0.22"/>
+                        <path d="M36 126 L44 88 L72 96 L94 78 L142 106 C158 110, 166 118, 166 128 L36 128 Z" fill="#f43f5e"/>
+                        <path d="M74 104 L96 122 M86 98 L108 116 M98 92 L120 110" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+                        <rect x="34" y="126" width="134" height="14" rx="6" fill="#ffffff"/>
+                        <rect x="34" y="136" width="134" height="5" rx="2.5" fill="#1e293b"/>
+                    </svg>`,
+                bag: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#fbcfe8"/>
+                                <stop offset="100%" stop-color="#f472b6"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <circle cx="100" cy="105" r="68" fill="#ffffff" opacity="0.48"/>
+                        <ellipse cx="100" cy="156" rx="48" ry="7" fill="#831843" opacity="0.22"/>
+                        <path d="M74 82 C74 54, 126 54, 126 82" fill="none" stroke="#831843" stroke-width="7" stroke-linecap="round"/>
+                        <rect x="50" y="80" width="100" height="68" rx="14" fill="#1e293b"/>
+                        <path d="M50 92 C50 84, 56 80, 64 80 L136 80 C144 80, 150 84, 150 92 L150 112 L50 112 Z" fill="#334155"/>
+                        <rect x="91" y="104" width="18" height="16" rx="4" fill="#fbbf24"/>
+                        <circle cx="100" cy="112" r="2.5" fill="#1e293b"/>
+                    </svg>`,
+                lamp: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#fef08a"/>
+                                <stop offset="100%" stop-color="#facc15"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <polygon points="56,102 144,102 166,162 34,162" fill="#ffffff" opacity="0.55"/>
+                        <rect x="72" y="152" width="56" height="9" rx="4.5" fill="#1e293b"/>
+                        <rect x="96" y="98" width="8" height="56" fill="#475569"/>
+                        <path d="M56 102 L76 50 L124 50 L144 102 Z" fill="#d97706"/>
+                        <ellipse cx="100" cy="102" rx="44" ry="6" fill="#fef9c3"/>
+                    </svg>`,
+                kettle: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#99f6e4"/>
+                                <stop offset="100%" stop-color="#2dd4bf"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <circle cx="100" cy="105" r="68" fill="#ffffff" opacity="0.5"/>
+                        <path d="M68 128 C44 124, 48 90, 34 84" fill="none" stroke="#1e293b" stroke-width="6.5" stroke-linecap="round"/>
+                        <path d="M130 84 L155 84 C162 84, 162 132, 151 132 L132 132" fill="none" stroke="#0f172a" stroke-width="7.5" stroke-linecap="round"/>
+                        <path d="M72 76 L128 76 L137 142 L63 142 Z" fill="#334155"/>
+                        <rect x="82" y="65" width="36" height="11" rx="4" fill="#0f172a"/>
+                        <circle cx="100" cy="60" r="5" fill="#0d9488"/>
+                        <rect x="58" y="144" width="84" height="9" rx="4.5" fill="#0f172a"/>
+                    </svg>`,
+                keyboard: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#c7d2fe"/>
+                                <stop offset="100%" stop-color="#60a5fa"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <ellipse cx="100" cy="146" rx="68" ry="7" fill="#1e3a8a" opacity="0.22"/>
+                        <rect x="28" y="66" width="144" height="70" rx="12" fill="#0f172a"/>
+                        <rect x="37" y="75" width="16" height="14" rx="3" fill="#f43f5e"/>
+                        <rect x="57" y="75" width="16" height="14" rx="3" fill="#f8fafc"/>
+                        <rect x="77" y="75" width="16" height="14" rx="3" fill="#f8fafc"/>
+                        <rect x="97" y="75" width="16" height="14" rx="3" fill="#f8fafc"/>
+                        <rect x="117" y="75" width="16" height="14" rx="3" fill="#f8fafc"/>
+                        <rect x="137" y="75" width="26" height="14" rx="3" fill="#6366f1"/>
+                        <rect x="37" y="93" width="22" height="14" rx="3" fill="#cbd5e1"/>
+                        <rect x="63" y="93" width="16" height="14" rx="3" fill="#f8fafc"/>
+                        <rect x="83" y="93" width="16" height="14" rx="3" fill="#f8fafc"/>
+                        <rect x="103" y="93" width="16" height="14" rx="3" fill="#f8fafc"/>
+                        <rect x="123" y="93" width="40" height="14" rx="3" fill="#cbd5e1"/>
+                        <rect x="37" y="111" width="24" height="14" rx="3" fill="#94a3b8"/>
+                        <rect x="65" y="111" width="68" height="14" rx="3" fill="#f8fafc"/>
+                        <rect x="137" y="111" width="26" height="14" rx="3" fill="#6366f1"/>
+                    </svg>`,
+                watch: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#e2e8f0"/>
+                                <stop offset="100%" stop-color="#94a3b8"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <circle cx="100" cy="100" r="68" fill="#ffffff" opacity="0.45"/>
+                        <rect x="81" y="26" width="38" height="148" rx="9" fill="#1e293b"/>
+                        <circle cx="100" cy="100" r="44" fill="#cbd5e1"/>
+                        <circle cx="100" cy="100" r="37" fill="#0f172a"/>
+                        <circle cx="100" cy="100" r="32" fill="#ffffff"/>
+                        <line x1="100" y1="100" x2="100" y2="76" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+                        <line x1="100" y1="100" x2="119" y2="109" stroke="#f43f5e" stroke-width="3" stroke-linecap="round"/>
+                        <circle cx="100" cy="100" r="4" fill="#0f172a"/>
+                    </svg>`,
+                plant: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#bbf7d0"/>
+                                <stop offset="100%" stop-color="#4ade80"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <circle cx="100" cy="104" r="68" fill="#ffffff" opacity="0.45"/>
+                        <ellipse cx="100" cy="156" rx="38" ry="6" fill="#14532d" opacity="0.22"/>
+                        <path d="M100 106 C76 96, 56 76, 68 58 C82 52, 98 76, 100 106 Z" fill="#15803d"/>
+                        <path d="M100 106 C124 96, 144 76, 132 58 C118 52, 102 76, 100 106 Z" fill="#16a34a"/>
+                        <path d="M100 106 C86 76, 90 44, 100 40 C110 44, 114 76, 100 106 Z" fill="#22c55e"/>
+                        <path d="M74 104 L126 104 L118 152 L82 152 Z" fill="#ffffff"/>
+                        <rect x="71" y="99" width="58" height="8" rx="4" fill="#f1f5f9"/>
+                    </svg>`,
+                book: `
+                    <svg viewBox="0 0 200 200" class="w-full h-full block" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="${uid}" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#fde68a"/>
+                                <stop offset="100%" stop-color="#f59e0b"/>
+                            </linearGradient>
+                        </defs>
+                        <rect width="200" height="200" fill="url(#${uid})"/>
+                        <ellipse cx="100" cy="162" rx="46" ry="6" fill="#78350f" opacity="0.22"/>
+                        <rect x="56" y="42" width="88" height="114" rx="8" fill="#1e293b"/>
+                        <rect x="65" y="42" width="79" height="114" rx="6" fill="#ea580c"/>
+                        <rect x="78" y="60" width="54" height="28" rx="4" fill="#ffffff"/>
+                        <circle cx="94" cy="74" r="7" fill="#f59e0b"/>
+                        <rect x="106" y="68" width="18" height="12" rx="2" fill="#0284c7"/>
+                        <rect x="78" y="98" width="42" height="6" rx="3" fill="#ffedd5"/>
+                        <rect x="78" y="110" width="50" height="6" rx="3" fill="#ffedd5"/>
+                    </svg>`
+            };
+
+            if (illustrations[type]) {
+                return illustrations[type];
+            }
+
+            // 汎用カテゴリデザインカード（新規追加・外部URL失敗時のフォールバック用）
+            const safeShortName = escapeHTML((item.name || item.category || 'WISH ITEM').slice(0, 14));
+            return `
+                <div class="w-full h-full bg-gradient-to-br ${cat.gradient} flex flex-col items-center justify-center text-white p-3 relative overflow-hidden">
+                    <div class="absolute -right-5 -bottom-5 w-24 h-24 rounded-full bg-white/10 pointer-events-none"></div>
+                    <div class="absolute -left-5 -top-5 w-20 h-20 rounded-full bg-white/10 pointer-events-none"></div>
+                    <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-1.5 shadow-inner">
+                        <i data-lucide="${cat.icon}" class="w-5 h-5 sm:w-6 sm:h-6 text-white"></i>
+                    </div>
+                    <span class="text-[11px] sm:text-xs font-bold text-white/95 text-center line-clamp-1 px-1">${safeShortName}</span>
+                </div>
+            `;
+        }
+
+        function inferIllustrationType(name = '', category = '') {
+            const text = `${name} ${category}`.toLowerCase();
+            if (text.includes('ヘッドホン') || text.includes('イヤホン') || text.includes('オーディオ')) return 'headphones';
+            if (text.includes('カメラ') || text.includes('レンズ') || text.includes('写真')) return 'camera';
+            if (text.includes('スニーカー') || text.includes('靴') || text.includes('シューズ')) return 'sneakers';
+            if (text.includes('バッグ') || text.includes('トート') || text.includes('鞄')) return 'bag';
+            if (text.includes('ランプ') || text.includes('照明') || text.includes('ライト')) return 'lamp';
+            if (text.includes('ケトル') || text.includes('コーヒー') || text.includes('ポット')) return 'kettle';
+            if (text.includes('キーボード') || text.includes('pc') || text.includes('パソコン')) return 'keyboard';
+            if (text.includes('時計') || text.includes('ウォッチ')) return 'watch';
+            if (text.includes('観葉植物') || text.includes('フラワー') || text.includes('植物')) return 'plant';
+            if (text.includes('本') || text.includes('ブック') || text.includes('ガイド')) return 'book';
+            return 'default';
+        }
+
+        // 正方形サムネイルHTML生成（外部URL・アップロード画像は<img>、未設定やエラー時はインラインSVGへ自動切替）
+        function buildThumbnailHTML(item, aspectClass = 'aspect-square') {
+            const hasImage = item.imageUrl && item.imageUrl.trim() !== '';
+            const safeName = escapeHTML(item.name || item.category);
+            const fallbackIllustration = getProductIllustrationSVG(item);
+
+            return `
+                <div class="relative w-full ${aspectClass} overflow-hidden bg-slate-100 select-none">
+                    ${hasImage ? `
+                        <img
+                            src="${escapeHTML(item.imageUrl)}"
+                            alt="${safeName}"
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                            onload="this.classList.remove('opacity-0'); this.classList.add('opacity-100');"
+                            onerror="this.style.display='none'; if(this.nextElementSibling){ this.nextElementSibling.classList.remove('hidden'); this.nextElementSibling.classList.add('block'); }"
+                            class="w-full h-full object-cover opacity-0 transition-all duration-300 group-hover:scale-105 ${item.purchased ? 'grayscale-[30%] opacity-85' : ''}"
+                        >
+                        <div class="hidden w-full h-full">
+                            ${fallbackIllustration}
+                        </div>
+                    ` : `
+                        <div class="w-full h-full transition-transform duration-300 group-hover:scale-105 ${item.purchased ? 'grayscale-[25%] opacity-90' : ''}">
+                            ${fallbackIllustration}
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        // ==========================================
+        // 初期化 & データ永続化
+        // ==========================================
+        function initApp() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    wishlistItems = JSON.parse(saved);
+                } else {
+                    wishlistItems = [...SAMPLE_DATA];
+                    saveToStorage();
+                }
+            } catch (e) {
+                console.error('データの読み込みに失敗しました:', e);
+                wishlistItems = [...SAMPLE_DATA];
+            }
+
+            renderPresetButtons();
+            setupDragAndDrop();
+            renderAll();
+        }
+
+        function renderPresetButtons() {
+            const container = document.getElementById('preset-illustration-list');
+            if (!container) return;
+
+            container.innerHTML = ILLUSTRATION_PRESETS.map(preset => `
+                <button type="button" data-preset="${preset.id}" onclick="selectPresetIllustration('${preset.id}')" title="${preset.label}"
+                    class="preset-btn aspect-square w-full rounded-lg overflow-hidden border-2 border-slate-200 hover:border-brand-500 transition-all focus:outline-none">
+                    ${getProductIllustrationSVG({ illustrationType: preset.id })}
+                </button>
+            `).join('');
+        }
+
+        function selectPresetIllustration(type) {
+            document.getElementById('item-image').value = '';
+            document.getElementById('item-image-file').value = '';
+            document.getElementById('item-illustration-type').value = type;
+            updatePresetHighlight(type);
+            updateModalPreview();
+        }
+
+        function updatePresetHighlight(activeType) {
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                if (btn.dataset.preset === activeType) {
+                    btn.classList.remove('border-slate-200');
+                    btn.classList.add('border-brand-600', 'ring-2', 'ring-brand-500/30');
+                } else {
+                    btn.classList.remove('border-brand-600', 'ring-2', 'ring-brand-500/30');
+                    btn.classList.add('border-slate-200');
+                }
+            });
+        }
+
+        function onImageUrlInput() {
+            const val = document.getElementById('item-image').value.trim();
+            if (val) {
+                document.getElementById('item-illustration-type').value = '';
+                updatePresetHighlight('');
+            }
+            updateModalPreview();
+        }
+
+        function saveToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(wishlistItems));
+            } catch (e) {
+                console.error('データの保存に失敗しました:', e);
+                showToast('容量上限のため保存できませんでした（画像を小さくしてください）');
+            }
+        }
+
+        function resetToSampleData() {
+            openConfirmModal(
+                'サンプルデータの復元',
+                '現在のリストを初期のサンプルデータ（10件）に戻しますか？（現在のデータは上書きされます）',
+                () => {
+                    wishlistItems = [...SAMPLE_DATA];
+                    saveToStorage();
+                    renderAll();
+                    showToast('サンプルデータを復元しました');
+                }
+            );
+        }
+
+        // ==========================================
+        // 描画ロジック（固定フッター統計 & 正方形サムネイル一覧）
+        // ==========================================
+        function renderAll() {
+            updateDashboard();
+            renderList();
+        }
+
+        function updateDashboard() {
+            const totalCount = wishlistItems.length;
+            const purchasedItems = wishlistItems.filter(item => item.purchased);
+            const unpurchasedItems = wishlistItems.filter(item => !item.purchased);
+
+            const totalAmount = wishlistItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+            const purchasedAmount = purchasedItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+            const remainingAmount = unpurchasedItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+
+            const progressPercent = totalAmount > 0 ? Math.round((purchasedAmount / totalAmount) * 100) : 0;
+
+            document.getElementById('stat-count').textContent = `${totalCount}件`;
+            document.getElementById('stat-count-sub').textContent = `未購入 ${unpurchasedItems.length}件 / 購入済 ${purchasedItems.length}件`;
+            document.getElementById('stat-total').textContent = formatYen(totalAmount);
+            document.getElementById('stat-remaining').textContent = formatYen(remainingAmount);
+            document.getElementById('stat-purchased').textContent = formatYen(purchasedAmount);
+            document.getElementById('stat-progress-text').textContent = `(${progressPercent}%)`;
+            document.getElementById('stat-progress-bar').style.width = `${progressPercent}%`;
+        }
+
+        function setStatusFilter(status) {
+            currentStatusFilter = status;
+            document.querySelectorAll('.status-tab').forEach(btn => {
+                if (btn.dataset.status === status) {
+                    btn.className = 'status-tab px-2.5 py-1 text-xs font-medium rounded-md transition-all bg-white text-slate-900 shadow-sm';
+                } else {
+                    btn.className = 'status-tab px-2.5 py-1 text-xs font-medium rounded-md transition-all text-slate-600 hover:text-slate-900';
+                }
+            });
+            renderList();
+        }
+
+        function clearSearch() {
+            const searchInput = document.getElementById('filter-search');
+            searchInput.value = '';
+            renderList();
+            searchInput.focus();
+        }
+
+        function renderList() {
+            const searchQuery = (document.getElementById('filter-search').value || '').trim().toLowerCase();
+            const categoryFilter = document.getElementById('filter-category').value;
+            const priorityFilter = document.getElementById('filter-priority').value;
+            const sortBy = document.getElementById('sort-by').value;
+
+            // 検索クリアボタンの表示制御
+            const clearBtn = document.getElementById('clear-search-btn');
+            if (searchQuery) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+
+            // 1. フィルタリング
+            let filtered = wishlistItems.filter(item => {
+                if (currentStatusFilter === 'unpurchased' && item.purchased) return false;
+                if (currentStatusFilter === 'purchased' && !item.purchased) return false;
+                if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+                if (priorityFilter !== 'all' && item.priority !== priorityFilter) return false;
+
+                if (searchQuery) {
+                    const targetText = `${item.name} ${item.memo || ''} ${item.category}`.toLowerCase();
+                    if (!targetText.includes(searchQuery)) return false;
+                }
+                return true;
+            });
+
+            // 2. ソート
+            filtered.sort((a, b) => {
+                switch (sortBy) {
+                    case 'oldest':
+                        return a.createdAt - b.createdAt;
+                    case 'price-asc':
+                        return a.price - b.price;
+                    case 'price-desc':
+                        return b.price - a.price;
+                    case 'priority-desc': {
+                        const weightA = PRIORITY_CONFIG[a.priority]?.weight || 0;
+                        const weightB = PRIORITY_CONFIG[b.priority]?.weight || 0;
+                        if (weightB !== weightA) return weightB - weightA;
+                        return b.createdAt - a.createdAt;
+                    }
+                    case 'newest':
+                    default:
+                        return b.createdAt - a.createdAt;
+                }
+            });
+
+            const gridEl = document.getElementById('wishlist-grid');
+            const emptyEl = document.getElementById('empty-state');
+
+            if (filtered.length === 0) {
+                gridEl.innerHTML = '';
+                emptyEl.classList.remove('hidden');
+                lucide.createIcons();
+                return;
+            }
+
+            emptyEl.classList.add('hidden');
+            gridEl.innerHTML = filtered.map(item => createSquareCardHTML(item)).join('');
+            lucide.createIcons();
+        }
+
+        // 正方形サムネイル・コンパクトカード（スマホ2列〜PC5列・商品説明文は省略）
+        function createSquareCardHTML(item) {
+            const pri = PRIORITY_CONFIG[item.priority] || PRIORITY_CONFIG['medium'];
+            const isPurchased = item.purchased;
+            const safeName = escapeHTML(item.name);
+            const safeUrl = item.url ? escapeHTML(item.url) : '';
+
+            return `
+                <article class="group relative bg-white rounded-2xl border ${isPurchased ? 'border-slate-200/70 bg-slate-50/70' : 'border-slate-200/90 hover:border-brand-300 hover:shadow-md hover:shadow-slate-200/60'} overflow-hidden transition-all duration-200 flex flex-col justify-between">
+                    <div>
+                        <!-- 上部：正方形サムネイル画像（クリックで編集モーダルを開きメモ等を確認・編集可能） -->
+                        <div class="relative cursor-pointer" onclick="openModal('${item.id}')" title="クリックして詳細メモ確認・編集">
+                            ${buildThumbnailHTML(item, 'aspect-square')}
+
+                            <!-- 右上：状態／優先度バッジ -->
+                            <div class="absolute top-2 right-2 z-10 pointer-events-none">
+                                ${isPurchased ? `
+                                    <span class="inline-flex items-center gap-0.5 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-600/95 text-white shadow-sm backdrop-blur-sm">
+                                        <i data-lucide="check" class="w-3 h-3"></i>購入済
+                                    </span>
+                                ` : `
+                                    <span class="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-sm ${pri.badge}">
+                                        ${pri.shortLabel}
+                                    </span>
+                                `}
+                            </div>
+
+                            <!-- 左下：ワンクリック購入済みチェックボタン -->
+                            <button type="button" onclick="event.stopPropagation(); togglePurchased('${item.id}')" aria-label="${isPurchased ? '未購入に戻す' : '購入済みにする'}"
+                                class="absolute bottom-2 left-2 z-10 w-7 h-7 rounded-lg shadow-sm border flex items-center justify-center transition-colors ${isPurchased ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white/90 backdrop-blur-sm border-slate-200 hover:border-brand-500 text-transparent'}">
+                                <i data-lucide="check" class="w-4 h-4 stroke-[3]"></i>
+                            </button>
+
+                            ${isPurchased ? `<div class="absolute inset-0 bg-slate-900/10 pointer-events-none"></div>` : ''}
+                        </div>
+
+                        <!-- 中段：商品名（最大2行）＆ 価格のみ（商品説明文は省略） -->
+                        <div class="p-2.5 sm:p-3 pb-2 cursor-pointer" onclick="openModal('${item.id}')">
+                            <h3 class="text-xs sm:text-sm font-bold leading-snug line-clamp-2 min-h-[2.6em] mb-1 ${isPurchased ? 'line-through text-slate-400' : 'text-slate-900'}" title="${safeName}">
+                                ${safeName}
+                            </h3>
+                            <p class="text-sm sm:text-base font-bold font-num truncate ${isPurchased ? 'text-slate-400' : 'text-brand-600'}">
+                                ${formatYen(item.price)}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 下段：操作ボタン（外部リンク・編集・削除） -->
+                    <div class="px-2 sm:px-3 py-1.5 sm:py-2 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between gap-1">
+                        ${safeUrl ? `
+                            <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="商品ページを開く" class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-brand-600 px-1.5 py-1 rounded-lg hover:bg-brand-50/60 transition-colors">
+                                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                <span>リンク</span>
+                            </a>
+                        ` : `<span></span>`}
+                        <div class="flex items-center gap-0.5">
+                            <button type="button" onclick="openModal('${item.id}')" title="編集・詳細メモ" class="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button type="button" onclick="deleteItem('${item.id}')" title="削除" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            `;
+        }
+
+        // ==========================================
+        // CRUD操作（追加・編集・完了切替・削除）
+        // ==========================================
+        function handleFormSubmit(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('item-id').value;
+            const name = document.getElementById('item-name').value.trim();
+            const price = parseInt(document.getElementById('item-price').value, 10) || 0;
+            const category = document.getElementById('item-category').value;
+            const priority = document.querySelector('input[name="priority"]:checked').value;
+            const imageUrl = document.getElementById('item-image').value.trim();
+            const illustrationType = document.getElementById('item-illustration-type').value.trim();
+            const url = document.getElementById('item-url').value.trim();
+            const memo = document.getElementById('item-memo').value.trim();
+
+            if (!name) return;
+
+            if (id) {
+                // 編集
+                const index = wishlistItems.findIndex(item => item.id === id);
+                if (index !== -1) {
+                    wishlistItems[index] = {
+                        ...wishlistItems[index],
+                        name,
+                        price,
+                        category,
+                        priority,
+                        imageUrl,
+                        illustrationType,
+                        url,
+                        memo
+                    };
+                    showToast('アイテムを更新しました');
+                }
+            } else {
+                // 新規追加
+                const newItem = {
+                    id: 'item-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+                    name,
+                    price,
+                    category,
+                    priority,
+                    imageUrl,
+                    illustrationType,
+                    url,
+                    memo,
+                    purchased: false,
+                    createdAt: Date.now()
+                };
+                wishlistItems.unshift(newItem);
+                showToast('ウィッシュリストに追加しました');
+            }
+
+            saveToStorage();
+            renderAll();
+            closeModal();
+        }
+
+        function togglePurchased(id) {
+            const index = wishlistItems.findIndex(item => item.id === id);
+            if (index !== -1) {
+                wishlistItems[index].purchased = !wishlistItems[index].purchased;
+                saveToStorage();
+                renderAll();
+                showToast(wishlistItems[index].purchased ? '「購入済み」にしました' : '「未購入」に戻しました');
+            }
+        }
+
+        function deleteItem(id) {
+            const target = wishlistItems.find(item => item.id === id);
+            if (!target) return;
+
+            openConfirmModal(
+                'アイテムの削除',
+                `「${target.name}」をリストから削除してもよろしいですか？`,
+                () => {
+                    wishlistItems = wishlistItems.filter(item => item.id !== id);
+                    saveToStorage();
+                    renderAll();
+                    showToast('アイテムを削除しました');
+                }
+            );
+        }
+
+        // ==========================================
+        // モーダル & 画像プレビュー・自動圧縮処理
+        // ==========================================
+        function updateModalPreview() {
+            const imageUrl = document.getElementById('item-image').value.trim();
+            const itemName = document.getElementById('item-name').value.trim();
+            const category = document.getElementById('item-category').value;
+            const illustrationType = document.getElementById('item-illustration-type').value.trim();
+            const previewContainer = document.getElementById('modal-image-preview');
+            const removeBtn = document.getElementById('remove-image-btn');
+
+            if (imageUrl || illustrationType) {
+                removeBtn.classList.remove('hidden');
+            } else {
+                removeBtn.classList.add('hidden');
+            }
+
+            previewContainer.innerHTML = buildThumbnailHTML(
+                {
+                    name: itemName || category,
+                    category,
+                    imageUrl,
+                    illustrationType: illustrationType || undefined,
+                    purchased: false
+                },
+                'w-full h-full'
+            );
+            lucide.createIcons();
+        }
+
+        function clearImageInput() {
+            document.getElementById('item-image').value = '';
+            document.getElementById('item-image-file').value = '';
+            document.getElementById('item-illustration-type').value = '';
+            updatePresetHighlight('');
+            updateModalPreview();
+        }
+
+        // ローカル画像をHTML5 Canvasで自動リサイズ＆軽量JPEG圧縮してData URL化
+        function processImageFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                showToast('画像ファイルを選択してください');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const img = new Image();
+                img.onload = function () {
+                    const MAX_SIZE = 600;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > MAX_SIZE || height > MAX_SIZE) {
+                        const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
+                        width = Math.round(width * ratio);
+                        height = Math.round(height * ratio);
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.78);
+                    document.getElementById('item-image').value = compressedDataUrl;
+                    document.getElementById('item-illustration-type').value = '';
+                    updatePresetHighlight('');
+                    updateModalPreview();
+                    showToast('画像を最適化してセットしました');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleImageFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processImageFile(file);
+            }
+        }
+
+        function setupDragAndDrop() {
+            const dropzone = document.getElementById('image-dropzone');
+            if (!dropzone) return;
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropzone.addEventListener(eventName, () => {
+                    dropzone.classList.add('border-brand-500', 'bg-brand-50/70');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropzone.addEventListener(eventName, () => {
+                    dropzone.classList.remove('border-brand-500', 'bg-brand-50/70');
+                });
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                    processImageFile(files[0]);
+                }
+            });
+        }
+
+        function openModal(editId = null) {
+            const modal = document.getElementById('item-modal');
+            const form = document.getElementById('item-form');
+            const title = document.getElementById('modal-title');
+
+            form.reset();
+
+            if (editId) {
+                const item = wishlistItems.find(i => i.id === editId);
+                if (item) {
+                    title.textContent = 'アイテム詳細・編集';
+                    document.getElementById('item-id').value = item.id;
+                    document.getElementById('item-name').value = item.name;
+                    document.getElementById('item-price').value = item.price;
+                    document.getElementById('item-category').value = item.category;
+                    document.getElementById('item-image').value = item.imageUrl || '';
+                    document.getElementById('item-illustration-type').value = item.illustrationType || '';
+                    document.getElementById('item-url').value = item.url || '';
+                    document.getElementById('item-memo').value = item.memo || '';
+
+                    updatePresetHighlight(item.illustrationType || '');
+
+                    const radio = document.querySelector(`input[name="priority"][value="${item.priority}"]`);
+                    if (radio) radio.checked = true;
+                }
+            } else {
+                title.textContent = '新しいアイテムを追加';
+                document.getElementById('item-id').value = '';
+                document.getElementById('item-image').value = '';
+                document.getElementById('item-illustration-type').value = '';
+                updatePresetHighlight('');
+                document.querySelector('input[name="priority"][value="medium"]').checked = true;
+            }
+
+            updateModalPreview();
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => document.getElementById('item-name').focus(), 50);
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('item-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function openConfirmModal(title, message, onConfirm) {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            confirmCallback = onConfirm;
+
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            confirmCallback = null;
+        }
+
+        document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+            if (typeof confirmCallback === 'function') {
+                confirmCallback();
+            }
+            closeConfirmModal();
+        });
+
+        // 背景クリックでモーダルを閉じる
+        document.getElementById('item-modal').addEventListener('click', closeModal);
+        document.getElementById('confirm-modal').addEventListener('click', closeConfirmModal);
+
+        // Escキーでモーダルを閉じる
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                closeConfirmModal();
+            }
+        });
+
+        let toastTimer = null;
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = message;
+
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+            }, 2500);
+        }
+
+        function formatYen(amount) {
+            return '¥' + Number(amount || 0).toLocaleString('ja-JP');
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // アプリ起動
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
